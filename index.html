@@ -214,3 +214,126 @@ void loop() {
 
   delay(50);
 }
+  int getDistance() {
+
+digitalWrite(TRIG_PIN, LOW);
+delayMicroseconds(2);
+
+digitalWrite(TRIG_PIN, HIGH);
+delayMicroseconds(10);
+
+digitalWrite(TRIG_PIN, LOW);
+
+long duration =
+pulseIn(ECHO_PIN, HIGH, 30000);
+
+if (duration == 0) {
+return -1;
+}
+
+int distance =
+duration * 0.034 / 2;
+
+return distance;
+}
+
+void welcomePerson() {
+
+dfPlayer.playMp3Folder(1);
+
+moveHandsJoined();
+
+beepGreeting();
+}
+
+void goodbyePerson() {
+
+dfPlayer.playMp3Folder(2);
+
+moveHandsDown();
+
+digitalWrite(BUZZER_PIN, LOW);
+}
+
+void moveHandsJoined() {
+
+for (int i = 0; i <= 90; i++) {
+
+int leftPosition =
+  map(
+    i,
+    0,
+    90,
+    LEFT_HAND_DOWN,
+    LEFT_HAND_JOINED
+  );
+
+int rightPosition =
+  map(
+    i,
+    0,
+    90,
+    RIGHT_HAND_DOWN,
+    RIGHT_HAND_JOINED
+  );
+
+leftServo.write(leftPosition);
+rightServo.write(rightPosition);
+
+delay(15);
+
+}
+}
+
+void moveHandsDown() {
+
+for (int i = 0; i <= 90; i++) {
+
+int leftPosition =
+  map(
+    i,
+    0,
+    90,
+    LEFT_HAND_JOINED,
+    LEFT_HAND_DOWN
+  );
+
+int rightPosition =
+  map(
+    i,
+    0,
+    90,
+    RIGHT_HAND_JOINED,
+    RIGHT_HAND_DOWN
+  );
+
+leftServo.write(leftPosition);
+rightServo.write(rightPosition);
+
+delay(15);
+
+}
+}
+
+void beepGreeting() {
+
+for (int i = 0; i < 3; i++) {
+
+digitalWrite(BUZZER_PIN, HIGH);
+delay(120);
+
+digitalWrite(BUZZER_PIN, LOW);
+delay(120);
+
+}
+}</code></pre>
+
+</section><section class="card"><h2>💾 SD Card Audio Files</h2><div class="info">
+📁 MicroSD card ke andar ek folder banao:<br><br><b>mp3</b><br><br>
+
+🎵 <b>0001.mp3</b> → Welcome Audio<br>
+🎵 <b>0002.mp3</b> → Goodbye Audio
+
+</div></section>
+  
+  
