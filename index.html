@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Greeting Robot | RoboForce Robotics</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f7fb;
+      color: #1a1a1a;
+    }
+
+    header {
+      padding: 25px 18px;
+      background: #0b5cff;
+      color: white;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 26px;
+    }
+
+    header p {
+      margin: 8px 0 0;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #0b5cff;
+    }
+
+    .copy-btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: #0b5cff;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 15px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 16px;
+      overflow-x: auto;
+      border-radius: 10px;
+      background: #111827;
+      color: #e5e7eb;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .info {
+      line-height: 1.7;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🤖 Greeting Robot</h1>
+    <p>Program By Abhiraj </p>
+  </header>
+  <main class="container">
+    <section class="card">
+      <h2>Project Behaviour</h2>
+      <div class="info">
+        👤 Person aata hai → Sensor detect karta hai<br>
+        🎵 Welcome audio play hota hai<br>
+        🙏 Hands Namaste position mein aate hain<br>
+        🔔 Buzzer beep karta hai<br><br>🚶 Person chala jata hai → Goodbye audio play hota hai<br>
+        🤖 Hands neeche chale jate hain<br>
+        🔄 Robot next person ke liye ready ho jata hai
+
+      </div>
+    </section>
+    <section class="card">
+      <h2>Arduino Code</h2><button class="copy-btn" onclick="copyCode()">
+        📋 Copy Full Arduino Code
+      </button>
+      <pre id="code"><code>#include &lt;SoftwareSerial.h&gt;
+          #include &lt;DFRobotDFPlayerMini.h&gt;
+          #include &lt;Servo.h&gt;
+
+          const int TRIG_PIN = 7;
+          const int ECHO_PIN = 8;
+
+          const int LEFT_SERVO_PIN = 5;
+          const int RIGHT_SERVO_PIN = 6;
+
+          const int BUZZER_PIN = 4;
+
+          const int DFPLAYER_RX_PIN = 10;
+          const int DFPLAYER_TX_PIN = 11;
+
+          const int DETECTION_DISTANCE = 150;
+
+          const unsigned long DETECT_CONFIRM_TIME = 700;
+          const unsigned long LEAVE_CONFIRM_TIME = 2000;
+
+          const int LEFT_HAND_DOWN = 20;
+          const int RIGHT_HAND_DOWN = 160;
+
+          const int LEFT_HAND_JOINED = 110;
+          const int RIGHT_HAND_JOINED = 70;
+
+          Servo leftServo;
+          Servo rightServo;
+
+          SoftwareSerial dfSerial(
+          DFPLAYER_RX_PIN,
+          DFPLAYER_TX_PIN
+          );
+
+          DFRobotDFPlayerMini dfPlayer;
+
+          bool personPresent = false;
+
+          unsigned long detectedStartTime = 0;
+          unsigned long absentStartTime = 0;
+
+          bool detectionTimerRunning = false;
+          bool absenceTimerRunning = false;
+
+          void setup() {
+
+          Serial.begin(9600);
+
+          pinMode(TRIG_PIN, OUTPUT);
+          pinMode(ECHO_PIN, INPUT);
+
+          pinMode(BUZZER_PIN, OUTPUT);
+          digitalWrite(BUZZER_PIN, LOW);
+
+          leftServo.attach(LEFT_SERVO_PIN);
+          rightServo.attach(RIGHT_SERVO_PIN);
+
+          moveHandsDown();
+
+          dfSerial.begin(9600);
+
+          if (dfPlayer.begin(dfSerial)) {
+          dfPlayer.volume(25);
+          }
+
+          delay(1000);
+          }
+
+          void loop() {
+
+          int distance = getDistance();
+
+          bool objectDetected =
+          (distance &gt; 0 &amp;&amp;
+          distance &lt;= DETECTION_DISTANCE);
+
+          if (objectDetected) {
+
+          absenceTimerRunning = false;
+
+          if (!personPresent) {
+
+          if (!detectionTimerRunning) {
+
+          detectedStartTime = millis();
+          detectionTimerRunning = true;
+          }
+
+          if (millis() - detectedStartTime
+          &gt;= DETECT_CONFIRM_TIME) {
+
+          personPresent = true;
+          detectionTimerRunning = false;
+
+          welcomePerson();
+          }
+          }
+          }
+
+          else {
+
+          detectionTimerRunning = false;
+
+          if (personPresent) {
+
+          if (!absenceTimerRunning) {
+
+          absentStartTime = millis();
+          absenceTimerRunning = true;
+          }
+
+          if (millis() - absentStartTime
+          &gt;= LEAVE_CONFIRM_TIME) {
+
+          personPresent = false;
+          absenceTimerRunning = false;
+
+          goodbyePerson();
+          }
+          }
+          }
+
+          delay(50);
+          }
+          int getDistance() {
+
+          digitalWrite(TRIG_PIN, LOW);
+          delayMicroseconds(2);
+
+          digitalWrite(TRIG_PIN, HIGH);
+          delayMicroseconds(10);
+
+          digitalWrite(TRIG_PIN, LOW);
+
+          long duration =
+          pulseIn(ECHO_PIN, HIGH, 30000);
+
+          if (duration == 0) {
+          return -1;
+          }
+
+          int distance =
+          duration * 0.034 / 2;
+
+          return distance;
+          }
+
+          void welcomePerson() {
+
+          dfPlayer.playMp3Folder(1);
+
+          moveHandsJoined();
+
+          beepGreeting();
+          }
+
+          void goodbyePerson() {
+
+          dfPlayer.playMp3Folder(2);
+
+          moveHandsDown();
+
+          digitalWrite(BUZZER_PIN, LOW);
+          }
+
+          void moveHandsJoined() {
+
+          for (int i = 0; i <= 90; i++) { int leftPosition=map( i, 0, 90, LEFT_HAND_DOWN, LEFT_HAND_JOINED ); int
+            rightPosition=map( i, 0, 90, RIGHT_HAND_DOWN, RIGHT_HAND_JOINED ); leftServo.write(leftPosition);
+            rightServo.write(rightPosition); delay(15); } } void moveHandsDown() { for (int i=0; i <=90; i++) { int
+            leftPosition=map( i, 0, 90, LEFT_HAND_JOINED, LEFT_HAND_DOWN ); int rightPosition=map( i, 0, 90,
+            RIGHT_HAND_JOINED, RIGHT_HAND_DOWN ); leftServo.write(leftPosition); rightServo.write(rightPosition);
+            delay(15); } } void beepGreeting() { for (int i=0; i < 3; i++) { digitalWrite(BUZZER_PIN, HIGH); delay(120);
+            digitalWrite(BUZZER_PIN, LOW); delay(120); } }</code>
+      </pre>
+
+    </section>
+    <section class="card">
+      <h2>💾 SD Card Audio Files</h2>
+      <div class="info">
+        📁 MicroSD card ke andar ek folder banao:<br><br><b>mp3</b><br><br>
+
+        🎵 <b>0001.mp3</b> → Welcome Audio<br>
+        🎵 <b>0002.mp3</b> → Goodbye Audio
+
+      </div>
+    </section>
+    <section class="card">
+      <h2>🤖 Components</h2>
+      <div class="info">🧠 Arduino UNO<br>
+        📡 HC-SR04 Ultrasonic Sensor<br>
+        🎵 DFPlayer Mini<br>
+        💾 MicroSD Card<br>
+        🔊 Passive Speaker<br>
+        🙏 2 × SG90 Servo Motors<br>
+        🔔 Optional Buzzer<br>
+        🍞 Breadboard<br>
+        🔋 External Power Supply
+
+      </div>
+    </section>
+  </main>
+  <script>
+function copyCode() {
+
+  const code =
+    document.getElementById("code").innerText;
+
+  navigator.clipboard.writeText(code);
+
+  const button =
+    document.querySelector(".copy-btn");
+
+  button.innerText = "✅ Code Copied!";
+
+  setTimeout(function () {
+
+    button.innerText =
+      "📋 Copy Full Arduino Code";
+
+  }, 2000);
+}
+</script>
+</body>
+
+</html>
