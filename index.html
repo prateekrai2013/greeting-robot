@@ -93,6 +93,458 @@
         📋 Copy Full Arduino Code ⚡
       </button>
       <pre id="code"><code>
+        #include <SoftwareSerial.h>
+#include <DFRobotDFPlayerMini.h>
+#include <Servo.h>
+
+// ======================================================
+//              GREETING ROBOT - FINAL CODE
+// ======================================================
+
+
+// ================= PIN CONNECTIONS ====================
+
+// HC-SR04 Ultrasonic Sensor
+const byte TRIG_PIN = 7;
+const byte ECHO_PIN = 8;
+
+// Servo Motors
+const byte LEFT_SERVO_PIN = 5;
+const byte RIGHT_SERVO_PIN = 6;
+
+// Buzzer
+const byte BUZZER_PIN = 4;
+
+// DFPlayer Mini
+// Arduino receives from DFPlayer TX
+const byte DFPLAYER_RX_PIN = 10;
+
+// Arduino sends to DFPlayer RX
+const byte DFPLAYER_TX_PIN = 11;
+
+
+// ================= DETECTION SETTINGS =================
+
+// Maximum detection distance
+const int DETECTION_DISTANCE = 150; // centimeters
+
+// Person must be detected for this time
+const unsigned long DETECT_CONFIRM_TIME = 700;
+
+// Person must be absent for this time
+const unsigned long LEAVE_CONFIRM_TIME = 2000;
+
+
+// ================= SERVO POSITIONS ====================
+
+// Hands down / resting position
+const int LEFT_HAND_DOWN = 20;
+const int RIGHT_HAND_DOWN = 160;
+
+// Hands joined / Namaste position
+const int LEFT_HAND_JOINED = 110;
+const int RIGHT_HAND_JOINED = 70;
+
+
+// ================= OBJECTS ============================
+
+Servo leftServo;
+Servo rightServo;
+
+// SoftwareSerial(RX, TX)
+SoftwareSerial dfSerial(
+  DFPLAYER_RX_PIN,
+  DFPLAYER_TX_PIN
+);
+
+DFRobotDFPlayerMini dfPlayer;
+
+
+// ================= ROBOT STATE ========================
+
+bool personPresent = false;
+bool dfPlayerReady = false;
+
+unsigned long detectedStartTime = 0;
+unsigned long absentStartTime = 0;
+
+bool detectionTimerRunning = false;
+bool absenceTimerRunning = false;
+
+
+// ======================================================
+//                        SETUP
+// ======================================================
+
+void setup() {
+
+  // Serial Monitor
+  Serial.begin(9600);
+
+  Serial.println("Starting Greeting Robot...");
+
+
+  // ---------------- HC-SR04 ----------------
+
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  digitalWrite(TRIG_PIN, LOW);
+
+
+  // ---------------- BUZZER ----------------
+
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  digitalWrite(BUZZER_PIN, LOW);
+
+
+  // ---------------- SERVOS ----------------
+
+  leftServo.attach(LEFT_SERVO_PIN);
+  rightServo.attach(RIGHT_SERVO_PIN);
+
+  // Start with hands down
+  moveHandsDown();
+
+
+  // ---------------- DFPLAYER ----------------
+
+  dfSerial.begin(9600);
+
+  delay(500);
+
+
+  if (dfPlayer.begin(dfSerial)) {
+
+    dfPlayerReady = true;
+
+    Serial.println("DFPlayer ready.");
+
+    // Volume: 0 to 30
+    dfPlayer.volume(25);
+
+  } else {
+
+    dfPlayerReady = false;
+
+    Serial.println(
+      "DFPlayer not detected. Check wiring and SD card."
+    );
+  }
+
+
+  delay(1000);
+
+  Serial.println("Greeting Robot Ready!");
+}
+
+
+// ======================================================
+//                         LOOP
+// ======================================================
+
+void loop() {
+
+  int distance = getDistance();
+
+
+  // Check whether something is within detection range
+  bool objectDetected =
+    (distance > 0 &&
+     distance <= DETECTION_DISTANCE);
+
+
+  // ====================================================
+  //                  PERSON DETECTED
+  // ====================================================
+
+  if (objectDetected) {
+
+    // Cancel leaving timer
+    absenceTimerRunning = false;
+
+
+    // Person was previously absent
+    if (!personPresent) {
+
+      // Start detection confirmation
+      if (!detectionTimerRunning) {
+
+        detectedStartTime = millis();
+
+        detectionTimerRunning = true;
+      }
+
+
+      // Confirm person is actually present
+      if (millis() - detectedStartTime >=
+          DETECT_CONFIRM_TIME) {
+
+        personPresent = true;
+
+        detectionTimerRunning = false;
+
+        welcomePerson();
+      }
+    }
+  }
+
+
+  // ====================================================
+  //                PERSON NOT DETECTED
+  // ====================================================
+
+  else {
+
+    // Cancel detection confirmation
+    detectionTimerRunning = false;
+
+
+    // Person was previously present
+    if (personPresent) {
+
+      // Start absence timer
+      if (!absenceTimerRunning) {
+
+        absentStartTime = millis();
+
+        absenceTimerRunning = true;
+      }
+
+
+      // Confirm person has actually left
+      if (millis() - absentStartTime >=
+          LEAVE_CONFIRM_TIME) {
+
+        personPresent = false;
+
+        absenceTimerRunning = false;
+
+        goodbyePerson();
+      }
+    }
+  }
+
+
+  // Small delay for stable readings
+  delay(50);
+}
+
+
+// ======================================================
+//                ULTRASONIC DISTANCE
+// ======================================================
+
+int getDistance() {
+
+  // Clear trigger pin
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+
+
+  // Send ultrasonic pulse
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+
+  // Read echo
+  unsigned long duration =
+    pulseIn(ECHO_PIN, HIGH, 30000);
+
+
+  // No echo received
+  if (duration == 0) {
+
+    return -1;
+  }
+
+
+  // Calculate distance in centimeters
+  int distance =
+    duration * 0.0343 / 2;
+
+
+  return distance;
+}
+
+
+// ======================================================
+//                  WELCOME PERSON
+// ======================================================
+
+void welcomePerson() {
+
+  Serial.println(
+    "Person detected - Welcome!"
+  );
+
+
+  // Start Welcome audio
+  if (dfPlayerReady) {
+
+    dfPlayer.playMp3Folder(1);
+  }
+
+
+  // Move hands to Namaste position
+  moveHandsJoined();
+
+
+  // Buzzer greeting
+  beepGreeting();
+}
+
+
+// ======================================================
+//                  GOODBYE PERSON
+// ======================================================
+
+void goodbyePerson() {
+
+  Serial.println(
+    "Person left - Goodbye!"
+  );
+
+
+  // Start Goodbye audio first
+  if (dfPlayerReady) {
+
+    dfPlayer.playMp3Folder(2);
+  }
+
+
+  // Hands move down while audio is playing
+  moveHandsDown();
+
+
+  // Make sure buzzer is OFF
+  digitalWrite(
+    BUZZER_PIN,
+    LOW
+  );
+}
+
+
+// ======================================================
+//             MOVE HANDS TO NAMASTE
+// ======================================================
+
+void moveHandsJoined() {
+
+  for (int i = 0; i <= 90; i++) {
+
+    int leftPosition =
+      map(
+        i,
+        0,
+        90,
+        LEFT_HAND_DOWN,
+        LEFT_HAND_JOINED
+      );
+
+
+    int rightPosition =
+      map(
+        i,
+        0,
+        90,
+        RIGHT_HAND_DOWN,
+        RIGHT_HAND_JOINED
+      );
+
+
+    leftServo.write(leftPosition);
+
+    rightServo.write(rightPosition);
+
+
+    // Smooth movement speed
+    delay(15);
+  }
+}
+
+
+// ======================================================
+//                MOVE HANDS DOWN
+// ======================================================
+
+void moveHandsDown() {
+
+  for (int i = 0; i <= 90; i++) {
+
+    int leftPosition =
+      map(
+        i,
+        0,
+        90,
+        LEFT_HAND_JOINED,
+        LEFT_HAND_DOWN
+      );
+
+
+    int rightPosition =
+      map(
+        i,
+        0,
+        90,
+        RIGHT_HAND_JOINED,
+        RIGHT_HAND_DOWN
+      );
+
+
+    leftServo.write(leftPosition);
+
+    rightServo.write(rightPosition);
+
+
+    // Smooth movement speed
+    delay(15);
+  }
+}
+
+
+// ======================================================
+//                 BUZZER GREETING
+// ======================================================
+
+void beepGreeting() {
+
+  // Five clear beeps
+  for (int i = 0; i < 5; i++) {
+
+    digitalWrite(
+      BUZZER_PIN,
+      HIGH
+    );
+
+    delay(180);
+
+
+    digitalWrite(
+      BUZZER_PIN,
+      LOW
+    );
+
+    delay(120);
+  }
+
+
+  // Final longer beep
+  digitalWrite(
+    BUZZER_PIN,
+    HIGH
+  );
+
+  delay(350);
+
+
+  digitalWrite(
+    BUZZER_PIN,
+    LOW
+  );
+}
           
           
           </code>
